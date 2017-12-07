@@ -1,0 +1,86 @@
+<?php
+
+//https://www.cssigniter.com/programmatically-get-related-wordpress-posts-easily/
+
+function section_part_func( $atts ) {
+	$atts = shortcode_atts( array(
+        'type' => null,
+		'name' => null,
+        'context' => 'Click here to get in touch',
+        'clink' => '/about-us',
+        'cbtntext' => 'Contact Us'
+	), $atts, 'section_part' );
+    
+    set_query_var( 'atts', $atts );
+    
+    ob_start();
+    get_template_part('template-parts/' . $atts['type'] , $atts['name']);
+	$str = str_replace(array("\r","\n","<p></p>"),'',trim(ob_get_clean()));
+    return $str;
+    
+	//return get_template_part('template-parts/' . $atts['type'] , $atts['name']);
+}
+add_shortcode( 'section_part', 'section_part_func' );
+
+
+function ci_get_related_posts( $post_id, $related_count, $args = array() ) {
+    $args = wp_parse_args( (array) $args, array(
+        'orderby' => 'rand',
+        'return'  => 'query', // Valid values are: 'query' (WP_Query object), 'array' (the arguments array)
+    ) );
+
+    $related_args = array(
+        'post_type'      => get_post_type( $post_id ),
+        'posts_per_page' => $related_count,
+        'post_status'    => 'publish',
+        'post__not_in'   => array( $post_id ),
+        'orderby'        => $args['orderby'],
+        'tax_query'      => array()
+    );
+
+    $post       = get_post( $post_id );
+    $taxonomies = get_object_taxonomies( $post, 'names' );
+
+    foreach ( $taxonomies as $taxonomy ) {
+        $terms = get_the_terms( $post_id, $taxonomy );
+        if ( empty( $terms ) ) {
+            continue;
+        }
+        $term_list                   = wp_list_pluck( $terms, 'slug' );
+        $related_args['tax_query'][] = array(
+            'taxonomy' => $taxonomy,
+            'field'    => 'slug',
+            'terms'    => $term_list
+        );
+    }
+
+    if ( count( $related_args['tax_query'] ) > 1 ) {
+        $related_args['tax_query']['relation'] = 'OR';
+    }
+
+    if ( $args['return'] == 'query' ) {
+        return new WP_Query( $related_args );
+    } else {
+        return $related_args;
+    }
+}
+
+function krgp_gen_related_posts_func( $atts ) {
+    if(is_single()):
+        global $post;
+    
+        $related = ci_get_related_posts( $post->ID, 6 );
+        if ( $related->have_posts() ):       
+            set_query_var( 'related', $related ); 
+            ob_start();
+            get_template_part('template-parts/sec-related','post');
+            $str = str_replace(array("\r","\n","<p></p>"),'',trim(ob_get_clean()));
+            return $str;
+            wp_reset_postdata();
+        endif;
+    
+
+
+    endif;
+}
+add_shortcode( 'krgp_gen_related_posts', 'krgp_gen_related_posts_func' );
